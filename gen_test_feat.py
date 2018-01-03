@@ -20,13 +20,13 @@ if  not os.path.exists('tmp'):
     os.mkdir('tmp')
 
 def gen_user_feat():
-    dump_path = './tmp/train_user_feat.pkl'
+    dump_path = './tmp/test_user_feat.pkl'
     if os.path.exists(dump_path):
         df_user = pickle.load(open(dump_path,'rb'))
     else:
         df_user = pd.read_csv(t_user_file,header=0)
         # 训练时的截止日期时11月，以11月初作为计算激活时长终止时间，预测时改为12月
-        df_user['a_date'] = df_user['active_date'].map(lambda x: datetime.strptime('2016-11-1','%Y-%m-%d') - datetime.strptime(x, '%Y-%m-%d'))
+        df_user['a_date'] = df_user['active_date'].map(lambda x: datetime.strptime('2016-12-1','%Y-%m-%d') - datetime.strptime(x, '%Y-%m-%d'))
         # a_date 数据格式变成datetime格式，datetime.days , datetime.months, datetime.years,
         df_user['a_date'] = df_user['a_date'].map(lambda x : round(x.days/7))
         df_user['limit'] = df_user['limit'].map(lambda x: change_data(x))
@@ -38,14 +38,14 @@ def gen_user_feat():
     return df_user
 
 def gen_loan_feat():
-    dump_path = './tmp/train_loan_feat.pkl'
+    dump_path = './tmp/test_loan_feat.pkl'
     if os.path.exists(dump_path):
         df_loan = pickle.load(open(dump_path,'rb'))
     else:
         df_loan = pd.read_csv(t_loan_file,header=0)
         df_loan['month'] = df_loan['loan_time'].map(lambda x: conver_time(x))
         df_loan['loan_amount'] = df_loan['loan_amount'].map(lambda x: change_data(x))
-        df_loan = df_loan[df_loan['month'] != 11]
+        df_loan = df_loan[df_loan['month'] != 8]
         print("loan表的行列数：",df_loan.values.shape)
 
         # 贷款时间分布特征，按比例，不要直接用次数
@@ -90,7 +90,7 @@ def gen_loan_feat():
         # 最后一次贷款离11月的时长，平均每次贷款的时间间隔，最后一次贷款离11月的时长是否超过平均贷款时间间隔
         time_df = df_loan.copy()
         time_df = time_df.sort_values(by=['uid','loan_time'])
-        time_df['loan_time'] = time_df['loan_time'].map(lambda x: datetime.strptime('2016-11-1 00:00:00', '%Y-%m-%d %H:%M:%S') - datetime.strptime(x, '%Y-%m-%d %H:%M:%S'))
+        time_df['loan_time'] = time_df['loan_time'].map(lambda x: datetime.strptime('2016-12-1 00:00:00', '%Y-%m-%d %H:%M:%S') - datetime.strptime(x, '%Y-%m-%d %H:%M:%S'))
         time_df['last_loan_time'] = time_df['loan_time'].map(lambda x: round(x.days/7))
         last_loan_time = time_df.copy()
         last_loan_time.drop_duplicates(subset='uid', keep='last', inplace=True)
@@ -145,7 +145,7 @@ def gen_loan_feat():
         # 贷款次数
         df_loan['loan_times'] = 1
         # 每次贷款距离现在的时长
-        df_loan['loanTime_weights'] = df_loan['loan_time'].map(lambda x: datetime.strptime('2016-11-1 00:00:00', '%Y-%m-%d %H:%M:%S') - datetime.strptime(x, '%Y-%m-%d %H:%M:%S'))
+        df_loan['loanTime_weights'] = df_loan['loan_time'].map(lambda x: datetime.strptime('2016-12-1 00:00:00', '%Y-%m-%d %H:%M:%S') - datetime.strptime(x, '%Y-%m-%d %H:%M:%S'))
         df_loan['loanTime_weights'] = df_loan['loanTime_weights'].map(lambda x: 1/(1+ round(x.days/7)))
         # 三个月贷款权重累计和
         df_loan['loan_weights'] = df_loan['loan_amount'] * df_loan['loanTime_weights']
@@ -153,7 +153,7 @@ def gen_loan_feat():
         # 11月累计需要还款金额
         df_loan.loc[:,'repay'] = df_loan['loan_amount']/df_loan['plannum']
         for idx in list(df_loan.index):
-            if df_loan.loc[idx,'plannum'] == 1 and df_loan.loc[idx,'month'] <= 9:
+            if df_loan.loc[idx,'plannum'] == 1 and df_loan.loc[idx,'month'] <= 10:
                 df_loan.loc[idx,'repay'] = 0
         
         df_loan = df_loan.groupby(['uid','month'],as_index=False).sum()
@@ -162,18 +162,18 @@ def gen_loan_feat():
         month_df = pd.get_dummies(df_loan['month'], prefix="month")
         df_loan = pd.concat([df_loan,month_df],axis=1)
         df_loan = df_loan.groupby(['uid'],as_index=False).sum()
-        df_loan['loan_times_months'] = df_loan['month_8']+df_loan['month_9']+df_loan['month_10']
-        df_loan['loan_12'] = df_loan['month_8']+df_loan['month_9']
+        df_loan['loan_times_months'] = df_loan['month_11']+df_loan['month_9']+df_loan['month_10']
+        df_loan['loan_12'] = df_loan['month_10']+df_loan['month_9']
         df_loan['loan_12'] = df_loan['loan_12'].map({0:0,1:0,2:1})
-        df_loan['loan_13'] = df_loan['month_8']+df_loan['month_10']
+        df_loan['loan_13'] = df_loan['month_11']+df_loan['month_9']
         df_loan['loan_13'] = df_loan['loan_13'].map({0:0,1:0,2:1})
-        df_loan['loan_23'] = df_loan['month_9']+df_loan['month_10']
+        df_loan['loan_23'] = df_loan['month_11']+df_loan['month_10']
         df_loan['loan_23'] = df_loan['loan_23'].map({0:0,1:0,2:1})
-        df_loan['loan_123'] = df_loan['month_8']+df_loan['month_9']+df_loan['month_10']
+        df_loan['loan_123'] = df_loan['month_11']+df_loan['month_9']+df_loan['month_10']
         df_loan['loan_123'] = df_loan['loan_123'].map({0:0,1:0,2:0,3:1})
 
         del df_loan['month']
-        del df_loan['month_8']
+        del df_loan['month_11']
         del df_loan['month_9']
         del df_loan['month_10']
         del df_loan['loanTime_weights']
@@ -196,18 +196,18 @@ def gen_loan_feat():
 
 
 def gen_filter_loan_feat():
-    dump_path = './tmp/train_filter_loan_feat.pkl'
+    dump_path = './tmp/test_filter_loan_feat.pkl'
     if os.path.exists(dump_path):
         df_filter_loan = pickle.load(open(dump_path,'rb'))
     else:
         df_filter_loan = pd.read_csv(t_loan_file,header=0)
         df_filter_loan['month'] = df_filter_loan['loan_time'].map(lambda x: conver_time(x))
         df_filter_loan['loan_amount'] = df_filter_loan['loan_amount'].map(lambda x: round(change_data(x)))
-        df_filter_loan = df_filter_loan[df_filter_loan['month'] != 11]
+        df_filter_loan = df_filter_loan[df_filter_loan['month'] != 8]
         del df_filter_loan['month']
 
         # 贷款行为在滑动时间窗口内的贷款统计特征
-        df_filter_loan['days'] = df_filter_loan['loan_time'].map(lambda x: datetime.strptime('2016-11-1 00:00:00', '%Y-%m-%d %H:%M:%S') - datetime.strptime(x, '%Y-%m-%d %H:%M:%S'))
+        df_filter_loan['days'] = df_filter_loan['loan_time'].map(lambda x: datetime.strptime('2016-12-1 00:00:00', '%Y-%m-%d %H:%M:%S') - datetime.strptime(x, '%Y-%m-%d %H:%M:%S'))
         df_filter_loan['days'] = df_filter_loan['days'].map(lambda x: int(x.days))
 
         uid = df_filter_loan['uid'].unique()
@@ -230,13 +230,13 @@ def gen_filter_loan_feat():
 
 
 def gen_click_feat():
-    dump_path = './tmp/train_click_feat.pkl'
+    dump_path = './tmp/test_click_feat.pkl'
     if os.path.exists(dump_path):
         df_click = pickle.load(open(dump_path,'rb'))
     else:
         df_click = pd.read_csv(t_click_file,header=0)
         df_click['month'] = df_click['click_time'].map(lambda x: conver_time(x))
-        df_click = df_click[df_click['month'] != 11]
+        df_click = df_click[df_click['month'] != 8]
 
         # 点击时间特征分布
         click_hour_df = df_click.copy()
@@ -267,7 +267,7 @@ def gen_click_feat():
         # 最后一次点击离11月的时长，平均每次点击的时间间隔，最后一次点击离11月的时长是否超过平均点击时间间隔
         time_df = df_click.copy()
         time_df = time_df.sort_values(by=['uid','click_time'])
-        time_df['click_time'] = time_df['click_time'].map(lambda x: datetime.strptime('2016-11-1 00:00:00', '%Y-%m-%d %H:%M:%S') - datetime.strptime(x, '%Y-%m-%d %H:%M:%S'))
+        time_df['click_time'] = time_df['click_time'].map(lambda x: datetime.strptime('2016-12-1 00:00:00', '%Y-%m-%d %H:%M:%S') - datetime.strptime(x, '%Y-%m-%d %H:%M:%S'))
         time_df['last_click_time'] = time_df['click_time'].map(lambda x: round(x.days/7))
         last_click_time = time_df.copy()
         last_click_time.drop_duplicates(subset='uid', keep='last', inplace=True)
@@ -287,7 +287,7 @@ def gen_click_feat():
         print("last_click_time表的行列数：",last_click_time.values.shape)
 
         
-        df_click['click_weights'] = df_click['click_time'].map(lambda x: datetime.strptime('2016-11-1 00:00:00', '%Y-%m-%d %H:%M:%S') - datetime.strptime(x, '%Y-%m-%d %H:%M:%S'))
+        df_click['click_weights'] = df_click['click_time'].map(lambda x: datetime.strptime('2016-12-1 00:00:00', '%Y-%m-%d %H:%M:%S') - datetime.strptime(x, '%Y-%m-%d %H:%M:%S'))
         df_click['click_weights'] = df_click['click_weights'].map(lambda x: 1/(1+round(x.days/7)))
         del df_click['click_time']
 
@@ -318,13 +318,13 @@ def gen_click_feat():
 
 
 def gen_order_feat():
-    dump_path = './tmp/train_order_feat.pkl'
+    dump_path = './tmp/test_order_feat.pkl'
     if os.path.exists(dump_path):
         df_order = pickle.load(open(dump_path,'rb'))
     else:
         df_order = pd.read_csv(t_order_file,header=0)
         df_order['month'] = df_order['buy_time'].map(lambda x: conver_time(x))
-        df_order = df_order[df_order['month']!=11]
+        df_order = df_order[df_order['month']!=8]
         df_order['order_times'] = 1
         df_order.fillna(0.,inplace=True)
 
@@ -344,7 +344,7 @@ def gen_order_feat():
         # 最后一次购买离11月的时长，平均每次购买的时间间隔，最后一次购买离11月的时长是否超过平均购买时间间隔
         time_df = df_order.copy()
         time_df = time_df.sort_values(by=['uid','buy_time'])
-        time_df['buy_time'] = time_df['buy_time'].map(lambda x: datetime.strptime('2016-11-1', '%Y-%m-%d') - datetime.strptime(x, '%Y-%m-%d'))
+        time_df['buy_time'] = time_df['buy_time'].map(lambda x: datetime.strptime('2016-12-1', '%Y-%m-%d') - datetime.strptime(x, '%Y-%m-%d'))
         time_df['last_order_time'] = time_df['buy_time'].map(lambda x: round(x.days/7))
         last_order_time = time_df.copy()
         last_order_time.drop_duplicates(subset='uid', keep='last', inplace=True)
@@ -363,7 +363,7 @@ def gen_order_feat():
         last_order_time['is_exceed_order_interval'] = last_order_time['last_order_time'] - last_order_time['per_order_time_interval']
         print("last_order_time表的行列数：",last_order_time.values.shape)
 
-        df_order['buy_weights'] = df_order['buy_time'].map(lambda x: datetime.strptime('2016-11-1', '%Y-%m-%d') - datetime.strptime(x, '%Y-%m-%d'))
+        df_order['buy_weights'] = df_order['buy_time'].map(lambda x: datetime.strptime('2016-12-1', '%Y-%m-%d') - datetime.strptime(x, '%Y-%m-%d'))
         df_order['buy_weights'] = df_order['buy_weights'].map(lambda x: 1/(1+round(x.days/7)))
         df_order['cost_weight'] = df_order['real_price'] * df_order['buy_weights']
         df_order = df_order[['uid','buy_weights','cost_weight','real_price','discount']]
@@ -380,51 +380,34 @@ def gen_order_feat():
     return df_order
 
 
-def gen_labels():
-    dump_path = './tmp/train_label.pkl'
+def make_test_data():
+    dump_path = './data/test.pkl'
     if os.path.exists(dump_path):
-        df_label = pickle.load(open(dump_path,'rb'))
+        test_set = pickle.load(open(dump_path,'rb'))
     else:
-        df_label = pd.read_csv(t_loan_sum_file,header=0)
-        df_label = df_label[['uid','loan_sum']]
-        df_label.columns = ['uid','label']
-        pickle.dump(df_label, open(dump_path, 'wb'))
-        print(df_label['label'].describe())
-    return  df_label
-
-def make_training_data():
-    dump_path = './data/training2.pkl'
-    if os.path.exists(dump_path):
-        train_set = pickle.load(open(dump_path,'rb'))
-    else:
-        if  not os.path.exists('data'):
-            os.mkdir('data')
-
         df_user = gen_user_feat()
         df_loan = gen_loan_feat()
         df_filter_loan = gen_filter_loan_feat()
         df_click = gen_click_feat()
         df_order = gen_order_feat()
-        df_label = gen_labels()
 
-        train_set = pd.merge(df_user, df_loan, how='outer', on='uid')
-        train_set = pd.merge(train_set, df_filter_loan, how='outer', on='uid')
-        train_set = pd.merge(train_set, df_click, how='outer', on='uid')
-        train_set = pd.merge(train_set, df_order, how='outer', on='uid')
-        train_set = pd.merge(train_set, df_label, how='outer', on='uid')
+        test_set = pd.merge(df_user, df_loan, how='outer', on='uid')
+        test_set = pd.merge(test_set, df_filter_loan, how='outer', on='uid')
+        test_set = pd.merge(test_set, df_click, how='outer', on='uid')
+        test_set = pd.merge(test_set, df_order, how='outer', on='uid')
         
-        # train_set = train_set.fillna()
+        # test_set = test_set.fillna()
 
-        pickle.dump(train_set, open(dump_path, 'wb'))
-        feat_id = {i:fea for i ,fea in enumerate(list(train_set.columns))}
+        pickle.dump(test_set, open(dump_path, 'wb'))
+        feat_id = {i:fea for i ,fea in enumerate(list(test_set.columns))}
         print(feat_id)
 
-    return train_set
+    return test_set
 
 if __name__ == '__main__':
-    df_click = make_training_data()
-    print(df_click.head(10))
-    print("click表的行列数：",df_click.values.shape)
+    test_data = make_test_data()
+    print(test_data.head(10))
+    print("test_data表的行列数：",test_data.values.shape)
 
 
 
