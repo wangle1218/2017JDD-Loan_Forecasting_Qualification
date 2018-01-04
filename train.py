@@ -65,7 +65,7 @@ for train_index, val_index in kf.split(training):
 print("kflod rmse: {}\n mean rmse : {}".format(rmse_list, np.mean(np.array(rmse_list))))
 
 
-pred = np.mean(np.array(sub_pred))
+pred = np.mean(np.array(sub_pred),axis=0)
 sub_df.loc[:,'pred'] = pred
 sub_df.to_csv('submission.csv',sep=',',header=None,index=False,encoding='utf8')
 
